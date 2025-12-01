@@ -99,3 +99,7 @@ http://localhost:3000
 
 - This app is designed for controlled exam environments: no backspace, no arrow keys, and the user cannot change the test duration.
 - For production deployment, the Node/Express server must run on a Node-capable host (Render, Fly.io, etc.); static-only hosts like Netlify can serve the front-end but not the APIs without an additional backend.
+
+## Developer
+
+- **Name:** Safwan Hashmi
