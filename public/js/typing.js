@@ -1,4 +1,4 @@
-let sampleText =
+ let sampleText =
   'The quick brown fox jumps over the lazy dog. Practice makes perfect when learning to type quickly and accurately.';
 
 const promptEl = document.getElementById('prompt');
@@ -24,6 +24,10 @@ const resultTestTypeEl = document.getElementById('result-testtype');
 const printResultBtn = document.getElementById('print-result-btn');
 const resultTypedEl = document.getElementById('result-typed');
 const fullscreenBtn = document.getElementById('fullscreen-btn');
+const metaUsernameEl = document.getElementById('meta-username');
+const metaStartEl = document.getElementById('meta-start');
+const metaEndEl = document.getElementById('meta-end');
+const metaPrintEl = document.getElementById('meta-print');
 
 let startTime = null;
 let timerInterval = null;
@@ -37,9 +41,22 @@ let targetDurationSeconds = 30;
 let allowRetake = true;
 let isArmed = false; // user clicked Start but hasn't typed yet
 let accuracyMode = 'chars';
+let allowBackspaceTyping = false;
+let testStartDate = null;
+let testEndDate = null;
+
+function formatDateTime(dt) {
+  if (!dt) return '-';
+  try {
+    return dt.toLocaleString();
+  } catch (e) {
+    return String(dt);
+  }
+}
 
 function renderPrompt() {
   promptEl.innerHTML = '';
+  let currentSpan = null;
   for (let i = 0; i < sampleText.length; i++) {
     const ch = sampleText[i];
     const span = document.createElement('span');
@@ -52,8 +69,22 @@ function renderPrompt() {
       }
     } else if (typedText.length === i && isRunning) {
       span.classList.add('char-current');
+      currentSpan = span;
     }
     promptEl.appendChild(span);
+  }
+
+  // Keep the current character in view for long exam texts
+  if (currentSpan && promptEl.parentElement) {
+    const container = promptEl.parentElement;
+    const spanRect = currentSpan.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+
+    if (spanRect.top < containerRect.top) {
+      container.scrollTop += spanRect.top - containerRect.top - 16;
+    } else if (spanRect.bottom > containerRect.bottom) {
+      container.scrollTop += spanRect.bottom - containerRect.bottom + 16;
+    }
   }
 }
 
@@ -78,6 +109,9 @@ async function loadExam() {
       if (data.accuracyMode === 'words' || data.accuracyMode === 'chars') {
         accuracyMode = data.accuracyMode;
       }
+      if (typeof data.allowBackspace === 'boolean') {
+        allowBackspaceTyping = data.allowBackspace;
+      }
     }
   } catch (e) {
     // ignore and keep defaults
@@ -96,6 +130,25 @@ async function loadExam() {
   }
 }
 
+async function loadCurrentUser() {
+  if (!metaUsernameEl) return;
+  try {
+    const res = await fetch('/api/me');
+    if (res.status === 401) {
+      window.location.href = '/';
+      return;
+    }
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.username) {
+      metaUsernameEl.textContent = data.username;
+    }
+  } catch (e) {
+    // ignore; leave placeholder
+  }
+}
+
+loadCurrentUser();
 loadExam();
 
 function resetTest() {
@@ -112,6 +165,10 @@ function resetTest() {
   errorSeries = [];
   timeSeries = [];
   lastSecond = 0;
+  testStartDate = null;
+  testEndDate = null;
+  if (metaStartEl) metaStartEl.textContent = '-';
+  if (metaEndEl) metaEndEl.textContent = '-';
   renderPrompt();
 }
 
@@ -126,6 +183,8 @@ function startTest() {
 function ensureTimerStarted() {
   if (!isArmed || isRunning) return;
   startTime = Date.now();
+  testStartDate = new Date(startTime);
+  if (metaStartEl) metaStartEl.textContent = formatDateTime(testStartDate);
   timerInterval = setInterval(() => {
     const seconds = Math.floor((Date.now() - startTime) / 1000);
     timeEl.textContent = String(seconds);
@@ -156,6 +215,8 @@ function finishTest() {
   if (!startTime || !isRunning) {
     return;
   }
+  testEndDate = new Date();
+  if (metaEndEl) metaEndEl.textContent = formatDateTime(testEndDate);
   typingArea.disabled = true;
   clearInterval(timerInterval);
   isRunning = false;
@@ -174,22 +235,56 @@ function finishTest() {
   const extraChars = Math.max(0, typed.length - sampleText.length);
   const missedChars = Math.max(0, sampleText.length - typed.length);
   const totalChars = typed.length;
-  // word-based accuracy option
-  const sampleWords = sampleText.trim().length === 0 ? [] : sampleText.trim().split(/\s+/);
-  const typedWords = typed.trim().length === 0 ? [] : typed.trim().split(/\s+/);
-  const wordOverlap = Math.min(sampleWords.length, typedWords.length);
-  let correctWords = 0;
-  for (let i = 0; i < wordOverlap; i++) {
-    if (typedWords[i] === sampleWords[i]) correctWords++;
-  }
-  const totalWords = typedWords.length;
+  // Word-based metrics: normalize all whitespace (spaces, newlines, tabs) to
+  // single spaces so multi-line paragraphs are handled correctly.
+  const normalizeWhitespace = (s) => s.replace(/\s+/g, ' ').trim();
+  const normalizedSample = sampleText.length === 0 ? '' : normalizeWhitespace(sampleText);
+  const normalizedTyped = typed.length === 0 ? '' : normalizeWhitespace(typed);
 
-  let accuracy;
-  if (accuracyMode === 'words') {
-    accuracy = totalWords === 0 ? 0 : (correctWords / totalWords) * 100;
-  } else {
-    accuracy = totalChars === 0 ? 0 : (correctChars / totalChars) * 100;
+  const rawSampleWords = normalizedSample.length === 0 ? [] : normalizedSample.split(' ');
+  const rawTypedWords = normalizedTyped.length === 0 ? [] : normalizedTyped.split(' ');
+
+  // Trim punctuation at the start/end and compare case-insensitively so
+  // "Court" and "court" are treated as the same word.
+  const normalizeWord = (w) =>
+    w
+      .replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9]+$/g, '')
+      .toLowerCase();
+
+  const sampleWords = rawSampleWords.map(normalizeWord);
+  const typedWords = rawTypedWords.map(normalizeWord);
+
+  // Use a word-level Longest Common Subsequence (LCS) between sampleWords
+  // and typedWords to count how many words were typed correctly in order,
+  // while allowing for insertions/deletions/merged tokens without breaking
+  // alignment for the rest of the paragraph.
+  const sampleLen = sampleWords.length;
+  const typedLen = typedWords.length;
+
+  // Build DP table (sampleLen+1) x (typedLen+1)
+  const dp = Array(sampleLen + 1)
+    .fill(0)
+    .map(() => Array(typedLen + 1).fill(0));
+
+  for (let si = 1; si <= sampleLen; si++) {
+    const sw = sampleWords[si - 1];
+    for (let tj = 1; tj <= typedLen; tj++) {
+      const tw = typedWords[tj - 1];
+      if (sw && tw && sw === tw) {
+        dp[si][tj] = dp[si - 1][tj - 1] + 1;
+      } else {
+        dp[si][tj] = Math.max(dp[si - 1][tj], dp[si][tj - 1]);
+      }
+    }
   }
+
+  const correctWords = dp[sampleLen][typedLen];
+
+  // Total words typed = count of non-empty normalized words (spaces are not words)
+  const totalWords = typedWords.filter((w) => w.length > 0).length;
+
+  // Accuracy is always based on words: correct words / total typed words
+  const accuracy = totalWords === 0 ? 0 : (correctWords / totalWords) * 100;
   const typos = incorrectChars + extraChars + missedChars;
   // WPM is based on correctly typed words only
   const wordsTyped = correctWords;
@@ -308,12 +403,18 @@ function finishTest() {
   });
 }
 
-// Prevent corrections: block backspace, delete, arrow keys
+// Prevent corrections: block backspace (if disallowed), delete, arrow keys
 typingArea.addEventListener('keydown', (e) => {
   // Start timer as soon as the user presses any key in the typing area
   ensureTimerStarted();
 
-  const forbiddenKeys = ['Backspace', 'Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+  const forbiddenKeys = ['Delete', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+
+  if (!allowBackspaceTyping && e.key === 'Backspace') {
+    e.preventDefault();
+    return;
+  }
+
   if (forbiddenKeys.includes(e.key)) {
     e.preventDefault();
   }
@@ -346,6 +447,10 @@ newTestBtn.addEventListener('click', startTest);
 
 if (printResultBtn) {
   printResultBtn.addEventListener('click', () => {
+    if (metaPrintEl) {
+      const now = new Date();
+      metaPrintEl.textContent = formatDateTime(now);
+    }
     window.print();
   });
 }

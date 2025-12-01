@@ -19,7 +19,7 @@
         <span class="app-title">Exam builder</span>
       </div>
       <div class="navbar-right">
-        <a href="/dashboard.html" class="btn btn-teal btn-sm me-2">Dashboard</a>
+        <a href="/admin-dashboard.html" class="btn btn-teal btn-sm me-2">Dashboard</a>
         <a href="/typing.html" class="btn btn-outline-light btn-sm me-2">Typing test</a>
         <button id="logout-btn" class="btn btn-outline-light btn-sm">Logout</button>
       </div>
@@ -47,6 +47,10 @@
           <div class="form-check mb-3">
             <input class="form-check-input" type="checkbox" id="exam-allow-retake" />
             <label class="form-check-label" for="exam-allow-retake">Allow retake</label>
+          </div>
+          <div class="form-check mb-3">
+            <input class="form-check-input" type="checkbox" id="exam-allow-backspace" />
+            <label class="form-check-label" for="exam-allow-backspace">Allow backspace (corrections)</label>
           </div>
           <button type="submit" class="btn btn-teal">Save exam</button>
           <span id="exam-message" class="small ms-2"></span>

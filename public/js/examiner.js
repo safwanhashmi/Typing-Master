@@ -12,6 +12,10 @@ async function fetchExam() {
   if (modeSelect) {
     modeSelect.value = data.accuracyMode === 'words' ? 'words' : 'chars';
   }
+  const allowBackspaceCheckbox = document.getElementById('exam-allow-backspace');
+  if (allowBackspaceCheckbox) {
+    allowBackspaceCheckbox.checked = !!data.allowBackspace;
+  }
 }
 
 async function saveExam(e) {
@@ -22,6 +26,7 @@ async function saveExam(e) {
   const durationSeconds = Number(document.getElementById('exam-duration').value);
   const allowRetake = document.getElementById('exam-allow-retake').checked;
   const accuracyMode = document.getElementById('exam-accuracy-mode').value === 'words' ? 'words' : 'chars';
+  const allowBackspace = document.getElementById('exam-allow-backspace').checked;
   if (!text || !durationSeconds || durationSeconds <= 0) {
     msg.textContent = 'Please provide text and a positive duration in seconds.';
     return;
@@ -29,7 +34,7 @@ async function saveExam(e) {
   const res = await fetch('/api/exam', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, durationSeconds, allowRetake, accuracyMode }),
+    body: JSON.stringify({ text, durationSeconds, allowRetake, accuracyMode, allowBackspace }),
   });
   const data = await res.json();
   if (res.ok && data.success) {

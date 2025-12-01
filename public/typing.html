@@ -15,12 +15,20 @@
 <body class="typing-body">
   <div class="container mt-4">
     <header class="d-flex justify-content-between align-items-center mb-3">
-      <h1 class="h5 mb-0 text-light">Typing test</h1>
+      <h1 class="h5 mb-0 text-light typing-header-title">Typing Proficiency Examination for the Post of Stenographer (BPS-16)</h1>
       <nav>
         <a href="/dashboard.html" class="btn btn-teal btn-sm me-2">Dashboard</a>
         <button id="logout-btn" class="btn btn-outline-light btn-sm">Logout</button>
       </nav>
     </header>
+    <div class="text-light small mb-2" id="test-meta">
+      <div>Candidate: <span id="meta-username">-</span></div>
+      <div>
+        Test start: <span id="meta-start">-</span>
+        &bull; Test end: <span id="meta-end">-</span>
+        &bull; Report print: <span id="meta-print">-</span>
+      </div>
+    </div>
     <section>
       <div class="typing-topbar mb-3">
         <div class="typing-topbar-left">
@@ -51,9 +59,9 @@
         <div class="row g-4 align-items-stretch">
           <div class="col-md-3 d-flex flex-column justify-content-between">
             <div>
-              <div class="result-label-small">wpm</div>
+              <div class="result-label-small" title="WPM = number of correct words typed / minutes.">wpm</div>
               <div id="result-wpm" class="result-big">0</div>
-              <div class="result-label-small mt-3">acc</div>
+              <div class="result-label-small mt-3" title="Accuracy = (correct words / total words typed) × 100.">acc</div>
               <div id="result-accuracy" class="result-big">0%</div>
             </div>
             <div class="mt-4 small">

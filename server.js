@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 const { db, initDb } = require('./src/db');
 
 const app = express();
-const PORT = process.env.PORT || 80;
+const PORT = process.env.PORT || 3000;
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -56,6 +56,15 @@ app.post('/api/register', (req, res) => {
     }
     req.session.userId = this.lastID;
     res.json({ success: true });
+  });
+});
+
+// Current logged-in user info
+app.get('/api/me', requireAuth, (req, res) => {
+  db.get('SELECT username FROM users WHERE id = ?', [req.session.userId], (err, user) => {
+    if (err) return res.status(500).json({ error: 'Database error' });
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ username: user.username });
   });
 });
 
@@ -114,6 +123,7 @@ app.get('/api/exam', (req, res) => {
   let durationSeconds = 1200; // default 20 minutes
   let allowRetake = true;
   let accuracyMode = 'chars';
+  let allowBackspace = false;
 
   try {
     if (fs.existsSync(examTextPath)) {
@@ -130,16 +140,19 @@ app.get('/api/exam', (req, res) => {
       if (cfg.accuracyMode === 'chars' || cfg.accuracyMode === 'words') {
         accuracyMode = cfg.accuracyMode;
       }
+      if (typeof cfg.allowBackspace === 'boolean') {
+        allowBackspace = cfg.allowBackspace;
+      }
     }
   } catch (e) {
     return res.status(500).json({ error: 'Failed to load exam configuration' });
   }
 
-  res.json({ text, durationSeconds, allowRetake, accuracyMode });
+  res.json({ text, durationSeconds, allowRetake, accuracyMode, allowBackspace });
 });
 
 app.post('/api/exam', requireExaminer, (req, res) => {
-  const { text, durationSeconds, allowRetake, accuracyMode } = req.body;
+  const { text, durationSeconds, allowRetake, accuracyMode, allowBackspace } = req.body;
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'Exam text is required' });
   }
@@ -154,7 +167,12 @@ app.post('/api/exam', requireExaminer, (req, res) => {
     fs.writeFileSync(examTextPath, text, 'utf8');
     fs.writeFileSync(
       examConfigPath,
-      JSON.stringify({ durationSeconds: seconds, allowRetake: !!allowRetake, accuracyMode: mode }),
+      JSON.stringify({
+        durationSeconds: seconds,
+        allowRetake: !!allowRetake,
+        accuracyMode: mode,
+        allowBackspace: !!allowBackspace,
+      }),
       'utf8'
     );
   } catch (e) {
